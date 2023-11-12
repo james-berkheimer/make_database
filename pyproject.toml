@@ -13,7 +13,9 @@ dependencies = [
     "plexapi",
     "json5",
     "redis",
-    "mysql"
+    # "mysqlclient",
+    # "mysql-connector-python",
+    # "pymysql"
 ]
 
 [project.scripts]
