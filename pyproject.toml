@@ -25,12 +25,13 @@ plex = "make_database.plex.plex_test:main"
 
 [project.optional-dependencies]
 dev = [
-    "black",
-    "flake8",
-    "flake8-bugbear",
-    "Flake8-pyproject",
-    "isort",
-    "pep8-naming",
+    # "black",
+    # "flake8",
+    # "flake8-bugbear",
+    # "Flake8-pyproject",
+    # "isort",
+    # "pep8-naming",
+    "ruff",
 ]
 
 [tool.setuptools]
@@ -69,5 +70,5 @@ exclude = [
     ".venv"
 ]
 
-[tool.isort]
-profile = "black"
+# [tool.isort]
+# profile = "black"

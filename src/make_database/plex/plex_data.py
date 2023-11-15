@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import random
 from typing import TYPE_CHECKING
 
@@ -8,8 +10,8 @@ if TYPE_CHECKING:
     from ..authentication import PlexAuthentication
 
 
-class PlexData(object):
-    def __init__(self, authentication: "PlexAuthentication") -> None:
+class PlexData:
+    def __init__(self, authentication: PlexAuthentication) -> None:
         self.baseurl = authentication.baseurl
         self.token = authentication.token
 
