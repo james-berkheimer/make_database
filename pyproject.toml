@@ -20,7 +20,8 @@ dependencies = [
 
 [project.scripts]
 db = "make_database.main:main"
-plex = "plex.plex_test:main"
+testing = "make_database.main:test_db"
+plex = "make_database.plex.plex_test:main"
 
 [project.optional-dependencies]
 dev = [

@@ -5,6 +5,7 @@ import json5 as json
 
 class PlexAuthentication(object):
     def __init__(self) -> None:
+        # TODO find a better way to handle reading in the configurations
         self.auth_file_path = os.getenv("MEDIA_CONVEYOR")
         self.auth_data = self._resolve_auth()
 
