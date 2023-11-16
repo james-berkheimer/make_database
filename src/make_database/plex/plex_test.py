@@ -8,7 +8,8 @@ from pprint import pprint
 from plexapi.server import PlexServer
 
 from ..authentication import PlexAuthentication
-from .plex_data import PlexMovies
+
+# from .plex_data import PlexMovies
 
 # TODO Temporarily setting the environment variable here for dev purposes
 os.environ[
@@ -21,5 +22,14 @@ def main():
     plex = PlexServer(plex_auth.baseurl, plex_auth.token)
     # movies = PlexMovies(plex_auth)
     # pprint(movies.movies_db)
+    from collections import defaultdict
+
+    library_dict = defaultdict(list)
+    library_list = []
     for section in plex.library.sections():
-        print(section.title, section.type)
+        for movie in section.all():
+            print(movie.title)
+
+    # print(type(plex.library.section("Movies").all()))
+    # for movie in plex.library.section("Movies").all():
+    #     print(type(movie))

@@ -9,41 +9,39 @@ if TYPE_CHECKING:
 
 
 class PlexData:
-    def __init__(self, plex_server: PlexServer, sections: list = None) -> None:
+    def __init__(self, plex_server: PlexServer) -> None:
         self.plex_server = plex_server
-        if sections is None:
-            sections = self.plex_server.library.sections()
-        self.sections = sections
-
-    @property
-    def movies(self):
-        return self._movies
-
-    @movies.setter
-    def movies(self, movies):
-        self._movies = movies
-
-    @property
-    def shows(self):
-        return self._shows
-
-    @shows.setter
-    def shows(self, shows):
-        self._shows = shows
-
-    @property
-    def music(self):
-        return self._music
-
-    @music.setter
-    def music(self, music):
-        self._music = music
-
-
-    def parse_sections(self):
-        for section in self.sections:
+        self.movie_sections = []
+        self.show_sections = []
+        self.music_sections = []
+        for section in plex_server.library.sections():
             if section.type == "movie":
+                self.movie_sections.append(section.title)
+            if section.type == "show":
+                self.show_sections.append(section.title)
+            if section.type == "artist":
+                self.music_sections.append(section.title)
 
+    @property
+    def movies(self) -> list:
+        movies = []
+        for section in self.movie_sections:
+            movies.append(section.all())
+        return movies
+
+    @property
+    def shoes(self) -> list:
+        shows = []
+        for section in self.show_sections:
+            shows.append(section.all())
+        return shows
+
+    @property
+    def music(self) -> list:
+        music = []
+        for section in self.music_sections:
+            music.append(section.all())
+        return music
 
 
 class PlexMovies(PlexData):
