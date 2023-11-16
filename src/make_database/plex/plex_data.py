@@ -3,6 +3,8 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
+import json5 as json
+
 # Used for type-hinting
 if TYPE_CHECKING:
     from plexapi.server import PlexServer
@@ -22,44 +24,28 @@ class PlexData:
             if section.type == "artist":
                 self.music_sections.append(section.title)
 
-    @property
     def movies(self) -> list:
         movies = []
         for section in self.movie_sections:
             movies.append(section.all())
         return movies
 
-    @property
-    def shoes(self) -> list:
+    def shows(self) -> list:
         shows = []
         for section in self.show_sections:
             shows.append(section.all())
         return shows
 
-    @property
     def music(self) -> list:
         music = []
         for section in self.music_sections:
             music.append(section.all())
         return music
 
-
-class PlexMovies(PlexData):
-    def __init__(self, authentication) -> None:
-        super().__init__(authentication)
-        self._movies_db = self._set_movies_db()
-
-    def get_movies(self):
-        plex = self.get_server()
-        return plex.library.section("Movies").all()
-
     @property
-    def movies_db(self):
-        return self._movies_db
-
-    def _set_movies_db(self):
+    def movie_db(self) -> dict:
         db = {}
-        for movie in self.get_movies():
+        for movie in self.movies():
             db[f"movie:{random.getrandbits(32)}"] = {
                 "title": movie.title,
                 "year": movie.year,
@@ -67,3 +53,26 @@ class PlexMovies(PlexData):
                 "thumb_path": movie.thumb,
             }
         return db
+
+    @property
+    def shows_db(self) -> dict:
+        show_db = {}
+        for show in self.shows():
+            show_db[f"show:{random.getrandbits(32)}"] = {
+                "title": show.title,
+                "year": show.year,
+                "thumb_path": show.thumb,
+                "episodes": self.get_episodes(show),
+            }
+        return show_db
+
+    def get_episodes(self, show) -> str:
+        episode_db = {}
+        for season in show.seasons():
+            for episode in season.episodes():
+                episode_db[f"season {season.seasonNumber}"] = {
+                    "episode_number": episode.episodeNumber,
+                    "episode_name": episode.title,
+                    "episode_location": episode.locations,
+                }
+        return json.dumps(episode_db)
