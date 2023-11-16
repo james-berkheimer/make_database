@@ -15,8 +15,8 @@ class PlexAuthentication(object):
 
     @property
     def baseurl(self):
-        return self.auth_data["autentication"]["baseurl"]
+        return self.auth_data["credentials"]["baseurl"]
 
     @property
     def token(self):
-        return self.auth_data["autentication"]["token"]
+        return self.auth_data["credentials"]["token"]

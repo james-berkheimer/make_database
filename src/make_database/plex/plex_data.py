@@ -3,20 +3,47 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING
 
-from plexapi.server import PlexServer
-
 # Used for type-hinting
 if TYPE_CHECKING:
-    from ..authentication import PlexAuthentication
+    from plexapi.server import PlexServer
 
 
 class PlexData:
-    def __init__(self, authentication: PlexAuthentication) -> None:
-        self.baseurl = authentication.baseurl
-        self.token = authentication.token
+    def __init__(self, plex_server: PlexServer, sections: list = None) -> None:
+        self.plex_server = plex_server
+        if sections is None:
+            sections = self.plex_server.library.sections()
+        self.sections = sections
 
-    def get_server(self):
-        return PlexServer(self.baseurl, self.token)
+    @property
+    def movies(self):
+        return self._movies
+
+    @movies.setter
+    def movies(self, movies):
+        self._movies = movies
+
+    @property
+    def shows(self):
+        return self._shows
+
+    @shows.setter
+    def shows(self, shows):
+        self._shows = shows
+
+    @property
+    def music(self):
+        return self._music
+
+    @music.setter
+    def music(self, music):
+        self._music = music
+
+
+    def parse_sections(self):
+        for section in self.sections:
+            if section.type == "movie":
+
 
 
 class PlexMovies(PlexData):
