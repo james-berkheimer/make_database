@@ -1,99 +1,81 @@
 from __future__ import annotations
 
+import logging
 import random
-from typing import TYPE_CHECKING
+import re
 
 import json5 as json
+from plexapi.server import PlexServer
 
-# Used for type-hinting
-if TYPE_CHECKING:
-    from plexapi.server import PlexServer
+logger = logging.getLogger(__name__)
 
 
-class PlexData:
-    """A class for extracting and organizing data from a Plex media server.
+class PlexData(PlexServer):
+    def __init__(self, baseurl=None, token=None, session=None, timeout=None):
+        super().__init__(baseurl, token, session, timeout)
+        self._movie_sections = []
+        self._shows_sections = []
+        self._music_sections = []
+        self._movie_sections.extend(
+            section for section in self.library.sections() if section.type == "movie"
+        )
+        self._shows_sections.extend(
+            section for section in self.library.sections() if section.type == "show"
+        )
+        self._music_sections.extend(
+            section for section in self.library.sections() if section.type == "artist"
+        )
+        logger.info("PlexData initialized successfully")
 
-    This class provides methods to retrieve information about movies, TV shows,
-    and music from a Plex media server and organizes the data into dictionaries.
-
-    Attributes:
-        plex_server (PlexServer): The PlexServer instance representing the connected Plex media server.
-        movie_sections (list): A list of titles of movie sections in the Plex library.
-        show_sections (list): A list of titles of TV show sections in the Plex library.
-        music_sections (list): A list of titles of music sections in the Plex library.
-
-    Methods:
-        movies() -> list: Retrieve a list of all movies in the Plex library.
-        shows() -> list: Retrieve a list of all TV shows in the Plex library.
-        music() -> list: Retrieve a list of all music in the Plex library.
-        movie_db() -> dict: Generate a dictionary containing information about movies.
-        shows_db() -> dict: Generate a dictionary containing information about TV shows.
-        get_episodes(show) -> str: Retrieve a JSON string containing information about episodes of a TV show.
-    """
-
-    def __init__(self, plex_server: PlexServer) -> None:
-        """Initialize a PlexData instance with a PlexServer object."""
-        self.plex_server = plex_server
-        self.movie_sections = []
-        self.show_sections = []
-        self.music_sections = []
-        for section in plex_server.library.sections():
-            if section.type == "movie":
-                self.movie_sections.append(section.title)
-            if section.type == "show":
-                self.show_sections.append(section.title)
-            if section.type == "artist":
-                self.music_sections.append(section.title)
-
+    @property
     def movies(self) -> list:
-        """Retrieve a list of all movies in the Plex library."""
-        movies = []
-        for section in self.movie_sections:
-            movies.append(section.all())
+        movies = [movie for section in self._movie_sections for movie in section.all()]
+        logger.info(f"Retrieved {len(movies)} movies")
         return movies
 
+    @property
     def shows(self) -> list:
-        """Retrieve a list of all TV shows in the Plex library."""
-        shows = []
-        for section in self.show_sections:
-            shows.append(section.all())
+        shows = [show for section in self._shows_sections for show in section.all()]
+        logger.info(f"Retrieved {len(shows)} shows")
         return shows
 
+    @property
     def music(self) -> list:
-        """Retrieve a list of all music in the Plex library."""
-        music = []
-        for section in self.music_sections:
-            music.append(section.all())
+        music = [music for section in self._music_sections for music in section.all()]
+        logger.info(f"Retrieved {len(music)} music")
         return music
 
     @property
-    def movie_db(self) -> dict:
-        """Generate a dictionary containing information about movies."""
+    def movies_db(self) -> dict:
         db = {}
-        for movie in self.movies():
-            db[f"movie:{random.getrandbits(32)}"] = {
+        pattern = re.compile(r"[^a-zA-Z0-9]")
+        for movie in self.movies:
+            movie_name = pattern.sub("", movie.title).strip()
+            db[f"movie:{movie_name}:{movie.year}"] = {
                 "title": movie.title,
                 "year": movie.year,
-                "file_path": ";".join(movie.locations),
+                "file_path": str(";".join(movie.locations)),
                 "thumb_path": movie.thumb,
             }
+        logger.info("Generated movies database")
         return db
 
     @property
     def shows_db(self) -> dict:
-        """Generate a dictionary containing information about TV shows."""
-        show_db = {}
-        for show in self.shows():
-            show_db[f"show:{random.getrandbits(32)}"] = {
+        shows_db = {}
+        pattern = re.compile(r"[^a-zA-Z0-9]")
+        for show in self.shows:
+            show_name = pattern.sub("", show.title).strip()
+            shows_db[f"show:{show_name}:{show.year}"] = {
                 "title": show.title,
                 "year": show.year,
                 "thumb_path": show.thumb,
-                "episodes": self.get_episodes(show),
+                "episodes": self._get_episodes(show),
             }
-        return show_db
+        logger.info("Generated TV shows database")
+        return shows_db
 
-    def get_episodes(self, show) -> str:
-        """Retrieve a JSON string containing information about episodes of a TV show."""
+    def _get_episodes(self, show) -> str:
         episode_db = {}
         for season in show.seasons():
             for episode in season.episodes():
@@ -103,3 +85,40 @@ class PlexData:
                     "episode_location": episode.locations,
                 }
         return json.dumps(episode_db)
+
+    @property
+    def music_db(self) -> dict:
+        music_db = {}
+        pattern = re.compile(r"[^a-zA-Z0-9]")
+        for artist in self.music:
+            artist_name = pattern.sub("", artist.title).strip()
+            music_db[f"artist:{artist_name}"] = {
+                "artist": artist.title,
+                "thumb": artist.thumb,
+                "tracks": self._get_tracks(artist),
+            }
+        logger.info("Generated music database")
+        return music_db
+
+    def _get_tracks(self, artist) -> str:
+        track_db = {}
+        for album in artist.albums():
+            for track in album.tracks():
+                track_db[f"{album.title}:{album.year}"] = {
+                    "track_number": track.trackNumber,
+                    "track_name": track.title,
+                    "track_location": track.locations,
+                }
+        return json.dumps(track_db)
+
+    def package_libraries(self, movies=False, shows=False, music=False) -> dict:
+        libraries_db = {}
+        if movies:
+            libraries_db["movies"] = self.movies_db
+        if shows:
+            libraries_db["shows"] = self.shows_db
+        if music:
+            libraries_db["music"] = self.music
+
+        logger.info("Libraries packaged")
+        return libraries_db
