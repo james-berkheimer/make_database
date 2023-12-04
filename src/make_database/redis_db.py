@@ -38,12 +38,6 @@ class RedisPlexDB(RedisDB):
     def make_db(self):
         with self.redis.pipeline() as pipe:
             for key_id, value_data in self.plex_db.items():
-                # print(key_id)
-                # print(f"   {value_data}")
-                # if key_id == "movie:Amlie:2001":
-                #     pipe.hmset(key_id, value_data)
-                # if key_id == "movie:Zelig:1983":
-                #     pipe.hmset(key_id, value_data)
                 pipe.hmset(key_id, value_data)
             pipe.execute()
         self.redis.bgsave()

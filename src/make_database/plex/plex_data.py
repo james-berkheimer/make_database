@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import random
 import re
 
 import json5 as json
@@ -50,12 +49,21 @@ class PlexData(PlexServer):
         db = {}
         pattern = re.compile(r"[^a-zA-Z0-9]")
         for movie in self.movies:
+            # Verify data exists.  If not provide an empty string
+            # which will be an acceptible value for Redis
+            movie_title = movie.title or "NONE"
+            movie_year = movie.year or "NONE"
+            movie_thumb = movie.thumb or "NONE"
+            movie_paths = movie.locations or "NONE"
+            if movie_paths != "NONE":
+                movie_paths = str(";".join(movie.locations))
+
             movie_name = pattern.sub("", movie.title).strip()
             db[f"movie:{movie_name}:{movie.year}"] = {
-                "title": movie.title,
-                "year": movie.year,
-                "file_path": str(";".join(movie.locations)),
-                "thumb_path": movie.thumb,
+                "title": movie_title,
+                "year": movie_year,
+                "file_path": movie_paths,
+                "thumb_path": movie_thumb,
             }
         logger.info("Generated movies database")
         return db
@@ -65,60 +73,83 @@ class PlexData(PlexServer):
         shows_db = {}
         pattern = re.compile(r"[^a-zA-Z0-9]")
         for show in self.shows:
+            # Verify data exists.  If not provide an empty string
+            # which will be an acceptible value for Redis
             show_name = pattern.sub("", show.title).strip()
+            show_title = show.title or "NONE"
+            show_year = show.year or "NONE"
+            show_thumb = show.thumb or "NONE"
+
             shows_db[f"show:{show_name}:{show.year}"] = {
-                "title": show.title,
-                "year": show.year,
-                "thumb_path": show.thumb,
+                "title": show_title,
+                "year": show_year,
+                "thumb_path": show_thumb,
                 "episodes": self._get_episodes(show),
             }
         logger.info("Generated TV shows database")
         return shows_db
 
     def _get_episodes(self, show) -> str:
-        episode_db = {}
-        for season in show.seasons():
-            for episode in season.episodes():
-                episode_db[f"season {season.seasonNumber}"] = {
-                    "episode_number": episode.episodeNumber,
-                    "episode_name": episode.title,
-                    "episode_location": episode.locations,
-                }
-        return json.dumps(episode_db)
+        # Verify data exists.  If not provide an empty string
+        # which will be an acceptible value for Redis
+        if show.seasons():
+            episode_db = {}
+            for season in show.seasons():
+                for episode in season.episodes():
+                    episode_db[f"season {season.seasonNumber}"] = {
+                        "episode_number": episode.episodeNumber,
+                        "episode_name": episode.title,
+                        "episode_location": episode.locations,
+                    }
+            return json.dumps(episode_db)
+        else:
+            return "NONE"
 
     @property
     def music_db(self) -> dict:
         music_db = {}
         pattern = re.compile(r"[^a-zA-Z0-9]")
         for artist in self.music:
-            artist_name = pattern.sub("", artist.title).strip()
+            # Verify data exists.  If not provide an empty string
+            # which will be an acceptible value for Redis
+            artist_title = artist.title or "NONE"
+            artist_thumb = artist.thumb or "NONE"
+            artist_name = pattern.sub("", artist_title).strip()
             music_db[f"artist:{artist_name}"] = {
-                "artist": artist.title,
-                "thumb": artist.thumb,
+                "artist": artist_title,
+                "thumb": artist_thumb,
                 "tracks": self._get_tracks(artist),
             }
         logger.info("Generated music database")
         return music_db
 
     def _get_tracks(self, artist) -> str:
-        track_db = {}
-        for album in artist.albums():
-            for track in album.tracks():
-                track_db[f"{album.title}:{album.year}"] = {
-                    "track_number": track.trackNumber,
-                    "track_name": track.title,
-                    "track_location": track.locations,
-                }
-        return json.dumps(track_db)
+        if artist.albums():
+            track_db = {}
+            for album in artist.albums():
+                for track in album.tracks():
+                    # Verify data exists.  If not provide an empty string
+                    # which will be an acceptible value for Redis
+                    track_number = track.trackNumber or "NONE"
+                    track_name = track.title or "NONE"
+                    track_location = track.locations or "NONE"
+                    track_db[f"{album.title}:{album.year}"] = {
+                        "track_number": track_number,
+                        "track_name": track_name,
+                        "track_location": track_location,
+                    }
+            return json.dumps(track_db)
+        else:
+            return "NONE"
 
     def package_libraries(self, movies=False, shows=False, music=False) -> dict:
         libraries_db = {}
         if movies:
-            libraries_db["movies"] = self.movies_db
+            libraries_db.update(self.movies_db)
         if shows:
-            libraries_db["shows"] = self.shows_db
+            libraries_db.update(self.shows_db)
         if music:
-            libraries_db["music"] = self.music
+            libraries_db.update(self.music)
 
         logger.info("Libraries packaged")
         return libraries_db

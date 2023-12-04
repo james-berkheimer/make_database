@@ -25,9 +25,37 @@ print(os.getenv("MEDIA_CONVEYOR"))
 plex_auth = PlexAuthentication()
 plex_data = PlexData(plex_auth.baseurl, plex_auth.token)
 
+random.seed(444)
+hats = {
+    f"hat:{random.getrandbits(32)}": i
+    for i in (
+        {
+            "color": "black",
+            "price": 49.99,
+            "style": "fitted",
+            "quantity": 1000,
+            "npurchased": 0,
+        },
+        {
+            "color": "maroon",
+            "price": 59.99,
+            "style": "hipster",
+            "quantity": 500,
+            "npurchased": 0,
+        },
+        {
+            "color": "green",
+            "price": 99.99,
+            "style": "baseball",
+            "quantity": 200,
+            "npurchased": 0,
+        },
+    )
+}
+
 
 def get_db():
-    movies = plex_data.movies_db()
+    # movies = plex_data.movies_db()
     # shows = plex_data.shows_db()
     # music = plex_data.music_db()
     print("Finished")
@@ -39,7 +67,12 @@ def main():
 
     # db = plex_data.package_libraries(shows=False, music=False)
     # db = plex_data.package_libraries(movies=True)
-    db = plex_data.movies_db
+    movies = plex_data.movies_db
+    # for key, movie_dict in movies.items():
+    for key, movie_dict in list(hats.items())[:5]:
+        print(type(key), type(movie_dict))
+        print(key)
+        pprint(movie_dict)
 
     # json_object = json.dumps(db, indent=4)
 
@@ -106,9 +139,9 @@ def main():
 
     # Specify the file path
 
-    file_path = Path(cwd, "data.json")
+    # file_path = Path(cwd, "data.json")
     # print(file_path)
 
     # # Write data to the JSON file
-    with open(file_path, "w") as json_file:
-        json.dump(db, json_file, indent=4)
+    # with open(file_path, "w") as json_file:
+    #     json.dump(db, json_file, indent=4)
