@@ -1,43 +1,62 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import logging
+from typing import Dict
 
-import json5 as json
-from redis import Redis
+from redis import ConnectionError, RedisError, StrictRedis, TimeoutError
 
-# Used for type-hinting
-if TYPE_CHECKING:
-    from make_database.plex.plex_data import PlexData
+from .logging import setup_logger
+
+logger = setup_logger()
 
 
-class RedisDB:
+class RedisPlexDB(StrictRedis):
+    plex_db: Dict[str, str]
+
     def __init__(
-        self: "RedisDB", host: str = "localhost", port: int = 6379, db: int = 0
-    ) -> None:
-        self.host = host
-        self.port = port
-        self.db = db
-        self.redis = Redis(
-            host=self.host, port=self.port, db=self.db, decode_responses=True
-        )
-
-
-class RedisPlexDB(RedisDB):
-    # TODO Need to find a way to update the db.  The main point is to remove
-    # any missing items from the incoming db
-    def __init__(
-        self: RedisDB,
-        plex_db: dict,
+        self,
+        plex_db: Dict[str, str] = None,
         host: str = "localhost",
-        port: int = 6379,
-        db: int = 0,
+        port: int = 9000,
+        decode_responses: bool = True,
     ) -> None:
-        super().__init__(host, port, db)
-        self.plex_db = plex_db
+        if not host:
+            raise ValueError("Host must be provided")
+        if not isinstance(port, int) or port <= 0:
+            raise ValueError("Port must be a positive integer")
+        if plex_db is not None and (not isinstance(plex_db, dict) or not plex_db):
+            raise ValueError("plex_db must be a non-empty dictionary")
 
-    def make_db(self):
-        with self.redis.pipeline() as pipe:
-            for key_id, value_data in self.plex_db.items():
-                pipe.hmset(key_id, value_data)
-            pipe.execute()
-        self.redis.bgsave()
+        super().__init__(host=host, port=port, decode_responses=decode_responses)
+        self.plex_db = plex_db if plex_db is not None else {}
+
+    def make_db(self) -> None:
+        try:
+            with self.pipeline() as pipe:
+                for key_id, value_data in self.plex_db.items():
+                    pipe.hset(key_id, mapping=value_data)
+                pipe.execute()
+            logger.info("Database created successfully")
+        except ConnectionError:
+            logger.error("Could not connect to Redis server")
+            raise
+        except TimeoutError:
+            logger.error("Redis command timed out")
+            raise
+        except RedisError as e:
+            logger.error("An unexpected Redis error occurred: %s", e)
+            raise
+
+    def delete_db(self) -> None:
+        try:
+            self.flushdb()
+            logger.info("Database deleted successfully")
+        except ConnectionError:
+            logger.error("Could not connect to Redis server")
+            raise
+        except TimeoutError:
+            logger.error("Redis command timed out")
+            raise
+        except RedisError as e:
+            logger.error("An unexpected Redis error occurred: %s", e)
+            raise

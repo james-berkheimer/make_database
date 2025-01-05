@@ -8,7 +8,7 @@ import redis
 from plexapi.server import PlexServer
 
 from .authentication import PlexAuthentication
-from .plex.plex_data import PlexData
+from .plex_data import PlexData
 from .redis_db import RedisPlexDB
 
 # TODO Temporarily setting the environment variable here for dev purposes
@@ -37,7 +37,7 @@ def main():
     plex_auth = PlexAuthentication()
     plex_data = PlexData(plex_auth.baseurl, plex_auth.token)
     redis_db = RedisPlexDB(plex_data.package_libraries(movies=True))
-    redis_db.make_db()
+    # redis_db.make_db()
 
     # test(plex_data)
 

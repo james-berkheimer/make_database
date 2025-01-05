@@ -1,71 +1,136 @@
+import copy
 import os
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-import json5 as json
+import boto3
+import json5
+from botocore.exceptions import BotoCoreError, ClientError
+
+from .logging import setup_logger
+
+logger = setup_logger()
 
 
 class Authentication:
-    """
-    A class representing a generic authentication mechanism.
+    def __init__(self, auth_data: Optional[Dict[str, Any]] = None) -> None:
+        media_conveyor = os.getenv("MEDIA_CONVEYOR")
+        if not media_conveyor:
+            raise ValueError("MEDIA_CONVEYOR environment variable not set")
 
-    This class is designed to handle the loading of authentication data from a JSON file.
+        media_conveyor_path = Path(media_conveyor)
+        if not media_conveyor_path.exists():
+            raise ValueError(f"Credentials file not found: {media_conveyor_path}")
 
-    Attributes:
-        auth_file_path (str): The file path to the JSON file containing authentication data.
-        auth_data (dict): A dictionary containing authentication data loaded from the JSON file.
+        self.auth_file_path = media_conveyor_path / "credentials.json"
+        self.auth_data = auth_data if auth_data is not None else self._resolve_auth()
+        logger.info(
+            f"Authentication initialized with auth_data: {self._mask_auth_data()}"
+        )
 
-    Methods:
-        _resolve_auth(): Internal method to read and parse the authentication data from the specified file.
+    def _resolve_auth(self) -> Dict[str, Any]:
+        if not os.path.exists(self.auth_file_path):
+            logger.error(f"Credentials file not found: {self.auth_file_path}")
+            raise ValueError(f"Credentials file not found: {self.auth_file_path}")
 
-    """
-
-    def __init__(self) -> None:
-        """
-        Initialize an Authentication object.
-
-        Sets the file path for authentication data and loads the data using the internal _resolve_auth() method.
-        """
-        self.auth_file_path = f"{os.getenv('MEDIA_CONVEYOR')}/credentials.json"
-        self.auth_data = self._resolve_auth()
-
-    def _resolve_auth(self):
-        """
-        Internal method to read and parse the authentication data from the specified file.
-
-        Returns:
-            dict: A dictionary containing authentication data.
-        """
         with open(self.auth_file_path) as auth_file:
-            return json.load(auth_file)
+            return json5.load(auth_file)
+
+    def _mask_auth_data(self) -> Dict[str, Any]:
+        # Mask sensitive data in auth_data for logger
+        masked_auth_data = copy.deepcopy(self.auth_data)
+        for service in masked_auth_data:
+            for key in masked_auth_data[service]:
+                if "token" in key or "key" in key:
+                    masked_auth_data[service][key] = "****"
+        return masked_auth_data
 
 
 class PlexAuthentication(Authentication):
-    """
-    A subclass of Authentication specifically tailored for Plex server authentication.
+    def __init__(
+        self, baseurl: Optional[str] = None, token: Optional[str] = None
+    ) -> None:
+        if baseurl and token:
+            auth_data = {"plex": {"baseurl": baseurl, "token": token}}
+        else:
+            auth_data = None
+            logger.warning(
+                "No auth data provided for PlexAuthentication, falling back to credentials.json"
+            )
 
-    This class extends the generic Authentication class to provide properties for accessing Plex server base URL
-    and authentication token.
-
-    Properties:
-        baseurl (str): Retrieve the base URL of the Plex server from the authentication data.
-        token (str): Retrieve the authentication token for accessing the Plex server API from the authentication data.
-    """
+        super().__init__(auth_data=auth_data)
+        logger.info("PlexAuthentication initialized")
 
     @property
     def baseurl(self) -> str:
-        """
-        Retrieve the base URL of the Plex server from the authentication data.
-
-        Returns:
-            str: The base URL of the Plex server.
-        """
         return self.auth_data["plex"]["baseurl"]
 
     @property
     def token(self) -> str:
-        """
-        Retrieve the authentication token for accessing the Plex server API from the authentication data.
-
-        Returns:
-            str: The authentication token.
-        """
         return self.auth_data["plex"]["token"]
+
+
+class AWSCredentials(Authentication):
+    def __init__(
+        self,
+        access_key_id: Optional[str] = None,
+        secret_access_key: Optional[str] = None,
+        region_name: Optional[str] = None,
+    ) -> None:
+        if access_key_id and secret_access_key and region_name:
+            auth_data = {
+                "aws": {
+                    "access_key_id": access_key_id,
+                    "secret_access_key": secret_access_key,
+                    "region_name": region_name,
+                }
+            }
+        else:
+            auth_data = None
+            logger.info(
+                "No auth data provided for AWSCredentials, falling back to credentials.json"
+            )
+
+        super().__init__(auth_data=auth_data)
+        logger.info("AWSCredentials initialized")
+
+    def load(self) -> None:
+        os.environ["AWS_ACCESS_KEY_ID"] = self.auth_data["aws"]["access_key_id"]
+        os.environ["AWS_SECRET_ACCESS_KEY"] = self.auth_data["aws"]["secret_access_key"]
+        os.environ["AWS_DEFAULT_REGION"] = self.auth_data["aws"]["region_name"]
+        logger.info("AWS credentials loaded")
+        self.verify_credentials()
+
+    def verify_credentials(
+        self, aws_access_key_id=None, aws_secret_access_key=None, region_name=None
+    ):
+        # If no arguments are provided, use the instance's auth_data
+        if aws_access_key_id is None:
+            aws_access_key_id = self.auth_data["aws"]["access_key_id"]
+        if aws_secret_access_key is None:
+            aws_secret_access_key = self.auth_data["aws"]["secret_access_key"]
+        if region_name is None:
+            region_name = self.auth_data["aws"]["region_name"]
+
+        try:
+            logger.info("Verifying AWS credentials")
+            # Create a session using your credentials
+            session = boto3.Session(
+                aws_access_key_id=aws_access_key_id,
+                aws_secret_access_key=aws_secret_access_key,
+                region_name=region_name,
+            )
+
+            # Create an EC2 resource object using the session
+            ec2_resource = session.resource("ec2")
+
+            # Use the EC2 resource object to make a request
+            # This will throw an exception if the credentials are not valid
+            ec2_resource.instances.all().limit(1)
+
+            logger.info("AWS credentials are valid.")
+            return True
+        except (BotoCoreError, ClientError) as e:
+            logger.error("AWS credentials are not valid.")
+            logger.error("Error: %s", e)
+            return False
