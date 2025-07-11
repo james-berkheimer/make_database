@@ -13,9 +13,7 @@ from ..authentication import PlexAuthentication
 # from .plex_data import PlexMovies
 
 # TODO Temporarily setting the environment variable here for dev purposes
-os.environ[
-    "MEDIA_CONVEYOR"
-] = f"{str(Path(__file__).parent.parent.parent.parent)}/tests/configs/plex_configs.json"
+os.environ["MEDIA_CONVEYOR"] = "$HOME/.media_conveyor"
 
 
 def main():
